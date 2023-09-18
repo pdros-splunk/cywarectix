@@ -4,7 +4,7 @@
     "description": "Cyware Threat Intel eXchange is an intelligent client-server intelligence exchange that provides subscriber with full Threat Intel collection management from multiple internal and external sources",
     "type": "threat intel",
     "main_module": "ctix_connector.py",
-    "app_version": "1.0.2",
+    "app_version": "1.0.3-fdse",
     "min_phantom_version": "5.1.0",
     "product_vendor": "Cyware Labs",
     "product_name": "Cyware Threat Intel eXchange",
@@ -644,6 +644,47 @@
                 "height": 5,
                 "title": "Lookup URL"
             },
+            "versions": "EQ(*)"
+        },
+        {
+            "action": "upload indicator",
+            "description": "Use this API to create an Intel package of STIX objects from the collections",
+            "type": "investigate",
+            "identifier": "upload_indicator",
+            "read_only": true,
+            "parameters": {
+                "request_body": {
+                    "description": "Request body to execute in Json format",
+                    "data_type": "string",
+                    "required": true,
+                    "primary": true,
+                    "order": 0
+                }
+            },
+            "output": [
+                {
+                    "data_path": "action_result.status",
+                    "data_type": "string",
+                    "example_values": [
+                        "success",
+                        "failed"
+                    ],
+                    "column_name": "Status",
+                    "column_order": 0
+                },
+                {
+                    "data_path": "action_result.message",
+                    "data_type": "string"
+                },
+                {
+                    "data_path": "action_result.summary",
+                    "data_type": "string"
+                },
+                {
+                    "data_path": "summary.message",
+                    "data_type": "string"
+                }
+            ],
             "versions": "EQ(*)"
         }
     ],

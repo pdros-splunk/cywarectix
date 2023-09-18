@@ -93,26 +93,28 @@ class CTIXConnector(BaseConnector):
         sig_enc = urllib.parse.quote_plus(sig)
         return sig_enc
 
-    def _make_request(self, method, target_url, verify, action_result):
+    def _make_request(self, method, target_url, verify, action_result, data=None):
 
-        if method == "GET":
-            try:
+        try:
+            if method == 'GET':
                 r = requests.get(target_url, verify=verify)  # nosemgrep: python.requests.best-practice.use-timeout.use-timeout
-                try:
-                    rstatus = r.status_code
-                    response_json = r.json()
-                    return rstatus, response_json
-                except Exception as e:
-                    err_msg = self._get_error_message_from_exception(e)
-                    return action_result.set_status(phantom.APP_ERROR, "Parsing JSON response failed. {}".format(err_msg)), None
-            except requests.exceptions.ConnectionError:
-                err_msg = "Error connecting to server. Connection refused from the server"
-                return action_result.set_status(phantom.APP_ERROR, err_msg), None
+            elif method == 'POST':
+                r = requests.post(target_url, data=json.dumps(data), verify=verify)
+            else:
+                return action_result.set_status(phantom.APP_ERROR, "Unsupported REST method"), None
+            try:
+                rstatus = r.status_code
+                response_json = r.json()
+                return rstatus, response_json
             except Exception as e:
                 err_msg = self._get_error_message_from_exception(e)
-                return action_result.set_status(phantom.APP_ERROR, "GET request failed. {}".format(err_msg)), None
-        else:
-            return action_result.set_status(phantom.APP_ERROR, "Unsupported REST method"), None
+                return action_result.set_status(phantom.APP_ERROR, "Parsing JSON response failed. {}".format(err_msg)), None
+        except requests.exceptions.ConnectionError:
+            err_msg = "Error connecting to server. Connection refused from the server"
+            return action_result.set_status(phantom.APP_ERROR, err_msg), None
+        except Exception as e:
+            err_msg = self._get_error_message_from_exception(e)
+            return action_result.set_status(phantom.APP_ERROR, "GET request failed. {}".format(err_msg)), None
 
     def _test_connectivity(self, param):
         action_result = self.add_action_result(ActionResult(dict(param)))
@@ -305,6 +307,35 @@ class CTIXConnector(BaseConnector):
             self.save_progress(CYWARE_GET_REQ_FAILED_WITH_NON_200_STATUS.format(status_code))
             return action_result.set_status(phantom.APP_ERROR, CYWARE_GET_REQ_FAILED_WITH_NON_200_STATUS.format(status_code))
 
+    def _handle_upload_indicator(self, param):
+        action_result = ActionResult(dict(param))
+        self.add_action_result(action_result)
+
+        # check for required input param
+        data = param["request_body"]
+
+        # build full REST endpoint with Auth signature
+        # make POST request to CTIX OpenAPI
+        try:
+            endpoint = "/internal-intelligence/?Expires={}&AccessID={}&Signature={}".format(
+                self._expires, self._access_id, self._generate_signature(self._access_id, self._secret_key, self._expires))
+            status_code, response = self._make_request("POST", "{}{}".format(self._baseurl, endpoint), self._verify, action_result, data=data)
+        except Exception as e:
+            err_msg = self._get_error_message_from_exception(e)
+            self.save_progress(CYWARE_GET_REQ_FAILED.format(err_msg))
+            return action_result.set_status(phantom.APP_ERROR, "Upload indicator failed. {}".format(err_msg))
+
+        if phantom.is_fail(status_code):
+            return action_result.get_status()
+
+        # check response status_code
+        if status_code == 200:
+            details = response.get('details')
+            return action_result.set_status(phantom.APP_SUCCESS, details)
+        else:
+            self.save_progress(CYWARE_POST_REQ_FAILED_WITH_NON_200_STATUS.format(status_code))
+            return action_result.set_status(phantom.APP_ERROR, CYWARE_POST_REQ_FAILED_WITH_NON_200_STATUS.format(status_code))
+
     def handle_action(self, param):
         ret_val = phantom.APP_SUCCESS
 
@@ -321,6 +352,8 @@ class CTIXConnector(BaseConnector):
             ret_val = self._handle_lookup_ip(param)
         elif action_id == "lookup_url":
             ret_val = self._handle_lookup_url(param)
+        elif action_id == "upload_indicator":
+            ret_val = self._handle_upload_indicator(param)
         return ret_val
 
 
